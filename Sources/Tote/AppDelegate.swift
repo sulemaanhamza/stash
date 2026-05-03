@@ -4,9 +4,11 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let store = ToteStore()
     private let updater = Updater()
+    private let hotKey = HotKeyMonitor()
+    private var currentHotKey: HotKey = HotKey.loadFromDefaults() ?? .default
     private var menuBar: MenuBarController?
     private var popover: PopoverController?
-    private var service: ToteService?
+    private var captureWindow: HotKeyCaptureWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let pop = PopoverController(store: store)
@@ -24,19 +26,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onShowAbout: { [weak self] in
                 pop.dismiss()
                 self?.showStandardAboutPanel()
-            }
+            },
+            currentHotKey: { [weak self] in self?.currentHotKey ?? .default },
+            onSetHotKey: { [weak self] in self?.openHotKeyCapture() }
         )
 
-        // Register as a system Service ("Tote" in the right-click menu
-        // for file selections). NSUpdateDynamicServices nudges the
-        // services daemon (pbs) to re-scan our Info.plist; without it,
-        // the menu entry can take a logout/login to appear on first run.
-        let svc = ToteService(store: store)
-        service = svc
-        NSApp.servicesProvider = svc
-        NSUpdateDynamicServices()
+        // Best-effort: if Carbon refuses our saved hotkey (e.g. another
+        // app now owns it), fall back to the default and try that.
+        if !registerHotKey(currentHotKey) {
+            _ = registerHotKey(.default)
+            currentHotKey = .default
+        }
 
         Task { await updater.check() }
+    }
+
+    @discardableResult
+    private func registerHotKey(_ hk: HotKey) -> Bool {
+        hotKey.register(keyCode: hk.keyCode, modifiers: hk.modifiers) { [weak self] in
+            self?.handleHotKey()
+        }
+    }
+
+    /// Fired by the global hotkey. Reads the current Finder selection and
+    /// totes any files. Silent — feedback is the icon pulse, nothing else.
+    private func handleHotKey() {
+        let urls = FinderSelection.current()
+        guard !urls.isEmpty else { return }
+        store.add(urls: urls)
+        menuBar?.pulse()
+    }
+
+    private func openHotKeyCapture() {
+        if captureWindow == nil {
+            captureWindow = HotKeyCaptureWindowController(
+                onTryRegister: { [weak self] hk -> String? in
+                    guard let self else { return "Internal error" }
+                    if self.registerHotKey(hk) {
+                        self.currentHotKey = hk
+                        hk.saveToDefaults()
+                        return nil
+                    }
+                    // Re-register the previous one so the user isn't left
+                    // without any hotkey.
+                    _ = self.registerHotKey(self.currentHotKey)
+                    return "\(hk.displayString) is already used by another app or macOS. Try another combo."
+                },
+                onClose: { [weak self] in self?.captureWindow = nil }
+            )
+        }
+        captureWindow?.show()
     }
 
     /// Re-launching while running (Spotlight, Finder double-click) hits

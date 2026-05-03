@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 
 /// In-process smoke tests for Tote's pure logic (no NSApplication
 /// needed). Run with: `swift run Tote --test`.
@@ -27,6 +28,7 @@ enum SelfTests {
         runMergeTests(r)
         runLaunchAtLoginTests(r)
         runStoreLifecycleTests(r)
+        runHotKeyTests(r)
 
         let total = r.passed + r.failures.count
         print("\n\(r.passed)/\(total) passed")
@@ -181,6 +183,50 @@ enum SelfTests {
         let beforeNoop = s4.entries
         s4.add(urls: [])
         r.check("add(empty) is no-op", s4.entries == beforeNoop)
+    }
+
+    // MARK: - HotKey
+
+    private static func runHotKeyTests(_ r: Runner) {
+        r.check("default keyCode = T",
+                HotKey.default.keyCode == UInt32(kVK_ANSI_T))
+        r.check("default modifiers = control + option",
+                HotKey.default.modifiers == UInt32(controlKey | optionKey))
+        r.check("default display = '⌃⌥T'",
+                HotKey.default.displayString == "⌃⌥T")
+
+        let cmdShiftP = HotKey(
+            keyCode: UInt32(kVK_ANSI_P),
+            modifiers: UInt32(cmdKey | shiftKey)
+        )
+        r.check("⇧⌘P display", cmdShiftP.displayString == "⇧⌘P")
+
+        let allMods = HotKey(
+            keyCode: UInt32(kVK_ANSI_F),
+            modifiers: UInt32(controlKey | optionKey | shiftKey | cmdKey)
+        )
+        r.check("⌃⌥⇧⌘F display order", allMods.displayString == "⌃⌥⇧⌘F")
+
+        let optSpace = HotKey(
+            keyCode: UInt32(kVK_Space),
+            modifiers: UInt32(optionKey)
+        )
+        r.check("⌥Space display", optSpace.displayString == "⌥Space")
+
+        let unknown = HotKey(keyCode: 9999, modifiers: UInt32(cmdKey))
+        r.check("unknown keyCode falls back",
+                unknown.displayString == "⌘Key9999")
+
+        r.check("carbonModifiers cmd",
+                HotKey.carbonModifiers(from: [.command]) == UInt32(cmdKey))
+        r.check("carbonModifiers option+shift",
+                HotKey.carbonModifiers(from: [.option, .shift])
+                == UInt32(optionKey | shiftKey))
+        r.check("carbonModifiers all",
+                HotKey.carbonModifiers(from: [.command, .option, .shift, .control])
+                == UInt32(cmdKey | optionKey | shiftKey | controlKey))
+        r.check("carbonModifiers empty",
+                HotKey.carbonModifiers(from: []) == 0)
     }
 
     // MARK: - helpers

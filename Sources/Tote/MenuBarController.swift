@@ -10,6 +10,8 @@ final class MenuBarController: NSObject {
     private let currentLaunchAtLogin: () -> Bool
     private let onToggleLaunchAtLogin: () -> Void
     private let onShowAbout: () -> Void
+    private let currentHotKey: () -> HotKey
+    private let onSetHotKey: () -> Void
 
     private var iconView: MenuBarIconView?
     private var cancellables: Set<AnyCancellable> = []
@@ -20,7 +22,9 @@ final class MenuBarController: NSObject {
         onClick: @escaping () -> Void,
         currentLaunchAtLogin: @escaping () -> Bool,
         onToggleLaunchAtLogin: @escaping () -> Void,
-        onShowAbout: @escaping () -> Void
+        onShowAbout: @escaping () -> Void,
+        currentHotKey: @escaping () -> HotKey,
+        onSetHotKey: @escaping () -> Void
     ) {
         self.store = store
         self.updater = updater
@@ -28,6 +32,8 @@ final class MenuBarController: NSObject {
         self.currentLaunchAtLogin = currentLaunchAtLogin
         self.onToggleLaunchAtLogin = onToggleLaunchAtLogin
         self.onShowAbout = onShowAbout
+        self.currentHotKey = currentHotKey
+        self.onSetHotKey = onSetHotKey
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
         installIconView()
@@ -94,7 +100,10 @@ final class MenuBarController: NSObject {
         pulse()
     }
 
-    private func pulse() {
+    /// Brief scale-pulse on the menu bar icon. Used as silent feedback
+    /// for actions that complete without opening any UI — drag-drop and
+    /// the global hotkey.
+    func pulse() {
         guard let button = statusItem.button else { return }
         button.wantsLayer = true
         guard let layer = button.layer else { return }
@@ -126,6 +135,14 @@ final class MenuBarController: NSObject {
             menu.addItem(updaterItem)
             menu.addItem(NSMenuItem.separator())
         }
+
+        let hotKeyItem = NSMenuItem(
+            title: "Set Shortcut…  (\(currentHotKey().displayString))",
+            action: #selector(handleSetHotKey),
+            keyEquivalent: ""
+        )
+        hotKeyItem.target = self
+        menu.addItem(hotKeyItem)
 
         let launchItem = NSMenuItem(
             title: "Launch at Login",
@@ -188,4 +205,5 @@ final class MenuBarController: NSObject {
     @objc private func handleToggleLaunchAtLogin() { onToggleLaunchAtLogin() }
     @objc private func handleShowAbout() { onShowAbout() }
     @objc private func handleUpdaterClick() { updater.handleClick() }
+    @objc private func handleSetHotKey() { onSetHotKey() }
 }

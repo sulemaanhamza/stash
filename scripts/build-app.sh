@@ -58,24 +58,8 @@ cat > "$APP_DIR/Contents/Info.plist" <<EOF
     <true/>
     <key>NSHighResolutionCapable</key>
     <true/>
-    <key>NSServices</key>
-    <array>
-        <dict>
-            <key>NSMenuItem</key>
-            <dict>
-                <key>default</key>
-                <string>Tote</string>
-            </dict>
-            <key>NSMessage</key>
-            <string>toteFiles</string>
-            <key>NSPortName</key>
-            <string>$NAME</string>
-            <key>NSSendTypes</key>
-            <array>
-                <string>public.file-url</string>
-            </array>
-        </dict>
-    </array>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Tote reads the current Finder selection so its global shortcut can stash the selected file(s).</string>
 </dict>
 </plist>
 EOF
