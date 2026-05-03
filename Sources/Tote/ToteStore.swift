@@ -31,13 +31,30 @@ final class ToteStore: ObservableObject {
     /// "archive". If the user wants more, they want a folder.
     nonisolated static let capacity = 5
 
+    private static let hasEverAddedKey = "HasEverAdded"
+
     @Published private(set) var entries: [ToteEntry] = []
 
-    private let storeURL: URL
+    /// True once the user has added at least one file via any path
+    /// (drag, hotkey, future). Drives onboarding: when false AND
+    /// `entries` is empty, the popover shows verbose how-to copy and
+    /// auto-opens at launch. Sticky — once true, never resets.
+    @Published private(set) var hasEverAdded: Bool = false
 
-    init(storeURL: URL? = nil) {
+    private let storeURL: URL
+    private let defaults: UserDefaults
+
+    init(storeURL: URL? = nil, defaults: UserDefaults = .standard) {
         self.storeURL = storeURL ?? Self.defaultStoreURL()
+        self.defaults = defaults
         load()
+        // Migration: an upgrading user already has entries on disk; we
+        // never set HasEverAdded for them, so set it now to skip
+        // showing onboarding to people who clearly don't need it.
+        if !entries.isEmpty && !defaults.bool(forKey: Self.hasEverAddedKey) {
+            defaults.set(true, forKey: Self.hasEverAddedKey)
+        }
+        hasEverAdded = defaults.bool(forKey: Self.hasEverAddedKey)
     }
 
     /// Drop new files at the top of the tray. Re-adding a file that's
@@ -48,6 +65,10 @@ final class ToteStore: ObservableObject {
         let incoming = urls.compactMap(Self.makeEntry(from:))
         guard !incoming.isEmpty else { return }
         entries = Self.merge(adding: incoming, into: entries, capacity: Self.capacity)
+        if !hasEverAdded {
+            hasEverAdded = true
+            defaults.set(true, forKey: Self.hasEverAddedKey)
+        }
         save()
     }
 

@@ -183,6 +183,45 @@ enum SelfTests {
         let beforeNoop = s4.entries
         s4.add(urls: [])
         r.check("add(empty) is no-op", s4.entries == beforeNoop)
+
+        // --- hasEverAdded onboarding flag ---
+        // Use a per-test ephemeral defaults suite so we don't pollute the
+        // user's real UserDefaults when tests run interactively.
+        let suiteName = "tote-tests-\(UUID().uuidString)"
+        let suite = UserDefaults(suiteName: suiteName)!
+        defer { suite.removePersistentDomain(forName: suiteName) }
+
+        let onbStoreFile = tempRoot.appendingPathComponent("onb.json")
+        let onb = ToteStore(storeURL: onbStoreFile, defaults: suite)
+        r.check("hasEverAdded false on fresh store", onb.hasEverAdded == false)
+
+        onb.add(urls: [fileB])
+        r.check("hasEverAdded true after first add", onb.hasEverAdded == true)
+
+        // Persistence + a fresh store at same path/defaults reads true
+        let onb2 = ToteStore(storeURL: onbStoreFile, defaults: suite)
+        r.check("hasEverAdded persists across reload", onb2.hasEverAdded == true)
+
+        // Sticky: clearing entries doesn't reset the flag
+        onb2.clear()
+        r.check("hasEverAdded stays true after clear", onb2.hasEverAdded == true)
+
+        // Migration: an upgrading user with entries on disk but no flag
+        // gets the flag set silently on init, so we don't show them
+        // onboarding for an app they've been using.
+        let migSuite = UserDefaults(suiteName: "tote-tests-mig-\(UUID().uuidString)")!
+        defer { migSuite.removePersistentDomain(forName: migSuite.dictionaryRepresentation().description) }
+        let migStoreFile = tempRoot.appendingPathComponent("mig.json")
+        // Seed entries.json directly to simulate "existing user upgrading."
+        let seed: [ToteEntry] = [ToteStore.makeEntry(from: fileC)].compactMap { $0 }
+        let seedData = try! JSONEncoder().encode(seed)
+        try! seedData.write(to: migStoreFile)
+        // Pre-condition: flag is not set in this fresh defaults domain.
+        r.check("migration: flag not set in seed defaults",
+                migSuite.bool(forKey: "HasEverAdded") == false)
+        let mig = ToteStore(storeURL: migStoreFile, defaults: migSuite)
+        r.check("migration: existing entries flip flag on init",
+                mig.hasEverAdded == true)
     }
 
     // MARK: - HotKey

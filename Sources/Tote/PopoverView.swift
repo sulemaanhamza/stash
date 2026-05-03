@@ -11,7 +11,11 @@ struct PopoverView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if store.entries.isEmpty {
-                emptyState
+                if store.hasEverAdded {
+                    terseEmptyState
+                } else {
+                    onboardingEmptyState
+                }
             } else {
                 ForEach(store.entries) { entry in
                     ToteRow(entry: entry, store: store, hover: hover)
@@ -26,7 +30,7 @@ struct PopoverView: View {
         .fixedSize(horizontal: false, vertical: true)
     }
 
-    private var emptyState: some View {
+    private var terseEmptyState: some View {
         HStack {
             Spacer()
             Text("Drag a file onto the icon.")
@@ -35,6 +39,35 @@ struct PopoverView: View {
             Spacer()
         }
         .padding(.vertical, 16)
+    }
+
+    /// Shown only on the very first launches — until the user has added
+    /// at least one file. Three lines, no buttons, nothing to dismiss;
+    /// adding any file via any path retires this view forever.
+    private var onboardingEmptyState: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("How to use Tote")
+                .font(.system(size: 12, weight: .medium))
+                .padding(.bottom, 2)
+            onboardingRow("Drag a file onto this icon")
+            onboardingRow("Press ⌃⌥T with a file selected in Finder")
+            onboardingRow("Click to open · drag any row out to drop the file")
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func onboardingRow(_ text: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text("·")
+                .font(.system(size: 12))
+                .foregroundColor(.secondary)
+            Text(text)
+                .font(.system(size: 11))
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 }
 

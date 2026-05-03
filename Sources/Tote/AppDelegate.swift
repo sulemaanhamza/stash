@@ -39,6 +39,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         Task { await updater.check() }
+
+        // First-launch onboarding: auto-open the popover so the user
+        // sees where the icon is *and* the how-to copy in the empty
+        // state. Skipped if they've ever added a file (sticky), so
+        // upgrading users with existing entries don't get a popover
+        // out of nowhere.
+        if !store.hasEverAdded {
+            // Delay so the status item has rendered — without it, the
+            // anchor rect is degenerate and the popover floats mid-screen.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+                guard let self,
+                      let anchor = self.menuBar?.anchorView,
+                      !self.store.hasEverAdded else { return }
+                pop.toggle(relativeTo: anchor)
+            }
+        }
     }
 
     @discardableResult
